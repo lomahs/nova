@@ -5,7 +5,7 @@ from datetime import date, datetime
 from langchain_openai import OpenAIEmbeddings
 from pinecone import ServerlessSpec, Pinecone
 
-from config.settings import PINECONE_API_KEY, PINECONE_INDEX_NAME, EMBEDDING_KEY, EMBEDDING_MODEL, API_ENDPOINT
+from infrastructure.config.settings import PINECONE_API_KEY, PINECONE_INDEX_NAME, EMBEDDING_API_KEY, EMBEDDING_MODEL, API_ENDPOINT
 
 
 def chunks(vectors, batch_size = 100):
@@ -32,7 +32,7 @@ class PineconeRepository:
             )
 
         self.index = self.pc.Index(self.index_name, pool_threads=30)
-        self.embedder = OpenAIEmbeddings(model=EMBEDDING_MODEL, api_key=EMBEDDING_KEY, base_url=API_ENDPOINT)
+        self.embedder = OpenAIEmbeddings(model=EMBEDDING_MODEL, api_key=EMBEDDING_API_KEY, base_url=API_ENDPOINT)
 
     def upsert_tasks(self, tasks):
         """Convert list of Task objects into embeddings and upload to Pinecone."""

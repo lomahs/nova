@@ -1,7 +1,6 @@
 import pandas as pd
-from datetime import datetime
 
-from core.domain.Task import Task
+from domain.entities.task import Task
 
 
 class CSVRepository:

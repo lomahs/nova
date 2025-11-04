@@ -1,7 +1,4 @@
-from config.settings import CSV_FILE_PATH
-from core.use_cases.get_today_tasks import GetTodayTasks
-from infrastructure.data.csv_repository import CSVRepository
-from interfaces.agents.ai_agent import AIAgent
+from infrastructure.ai.ai_agent import AIAgent
 
 
 def main():

@@ -3,14 +3,14 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.tools import Tool, tool
 from langchain_openai import ChatOpenAI
 
-from config.settings import LLM_MODEL, LLM_KEY, API_ENDPOINT
-from core.domain.Task import build_task_from_metadata
-from infrastructure.vertor_store.pinecone_repository import PineconeRepository
+from infrastructure.config.settings import LLM_MODEL, LLM_API_KEY, API_ENDPOINT
+from domain.entities.task import build_task_from_metadata
+from infrastructure.ai.pinecone_repository import PineconeRepository
 
 
 class AIAgent:
     def __init__(self):
-        llm = ChatOpenAI(model=LLM_MODEL, api_key=LLM_KEY, base_url=API_ENDPOINT, temperature=0)
+        llm = ChatOpenAI(model=LLM_MODEL, api_key=LLM_API_KEY, base_url=API_ENDPOINT, temperature=0)
 
         tools = [
             Tool(
