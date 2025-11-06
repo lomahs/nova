@@ -1,5 +1,7 @@
 import os
+
 from dotenv import load_dotenv
+from langchain_openai import OpenAIEmbeddings
 
 load_dotenv()
 
@@ -15,3 +17,9 @@ CSV_FILE_PATH = os.getenv("CSV_FILE_PATH", "../../data/sample.csv")
 
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
+
+NEO4J_URI = os.getenv("NEO4J_URI")
+NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+
+embeddings = OpenAIEmbeddings(base_url=API_ENDPOINT, api_key=EMBEDDING_API_KEY, model=EMBEDDING_MODEL)
