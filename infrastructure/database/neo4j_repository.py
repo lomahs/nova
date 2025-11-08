@@ -4,6 +4,7 @@ from neo4j_graphrag.types import SearchType
 
 from domain.entities.task import Task
 from domain.services.excel_reader import ExcelReader
+from domain.services.utils import normalize_date
 from infrastructure.config.settings import embeddings, NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 
 
@@ -71,3 +72,40 @@ def import_excel_to_neo4j_vector(file_path):
     tasks = ExcelReader.read_tasks(file_path)
     neo4j_vector = connect_neo4j_vector()
     insert_tasks_to_neo4j(neo4j_vector, tasks)
+
+def search_tasks(pic: str = None, plan_start_date: str = None, status: str = None) -> list[Task]:
+    plan_start_date = normalize_date(plan_start_date)
+    cypher = "MATCH (t:Task)"
+    conditions = []
+    params = {}
+
+    if pic:
+        conditions.append("t.pic = $pic")
+        params["pic"] = pic
+    if plan_start_date:
+        conditions.append("date(t.plan_start_date) = date($plan_start_date)")
+        params["plan_start_date"] = plan_start_date
+    if status:
+        conditions.append("t.status = $status")
+        params["status"] = status
+
+    if conditions:
+        cypher += " WHERE " + " AND ".join(conditions)
+    cypher += " RETURN t { .* , embedding: null } AS task"
+
+    # 1. connect webhook
+    # 2. get data json
+    # 3. push json to webhook
+    neo4j_vector = connect_neo4j_vector()
+
+    result = neo4j_vector.query(cypher, params=params)
+
+    task_list= []
+    for record in result:
+        task = record["task"]
+        task.pop("embedding")
+        task.pop("id")
+        task.pop("text")
+        task_list.append(task)
+
+    return task_list

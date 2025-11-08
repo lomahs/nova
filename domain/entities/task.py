@@ -1,7 +1,3 @@
-import datetime
-from dataclasses import dataclass
-
-
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional, List
@@ -11,15 +7,15 @@ class Task:
     task: str
     pic: str
     status: str
-    plan_effort: Optional[float]
-    plan_start_date: Optional[date]
-    plan_end_date: Optional[date]
-    actual_effort: Optional[float]
-    actual_start_date: Optional[date]
-    actual_end_date: Optional[date]
-    progress: Optional[float]
     issues: List[str]
     remark: str
+    progress: Optional[float] = 0
+    plan_effort: Optional[float] = 0
+    plan_start_date: Optional[date] = None
+    plan_end_date: Optional[date] = None
+    actual_effort: Optional[float] = 0
+    actual_start_date: Optional[date] = None
+    actual_end_date: Optional[date] = None
 
     def __str__(self):
         """String form for embedding / semantic indexing"""

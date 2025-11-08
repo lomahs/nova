@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 
 load_dotenv()
 
@@ -22,4 +22,9 @@ NEO4J_URI = os.getenv("NEO4J_URI")
 NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
+CONVERSATION_HISTORY_FOLDER_PATH = os.getenv("CONVERSATION_HISTORY_FOLDER_PATH")
+CONVERSATION_HISTORY_FILE_PATH = CONVERSATION_HISTORY_FOLDER_PATH + "/conversation_history.json"
+
 embeddings = OpenAIEmbeddings(base_url=API_ENDPOINT, api_key=EMBEDDING_API_KEY, model=EMBEDDING_MODEL)
+
+llm = ChatOpenAI(model=LLM_MODEL, api_key=LLM_API_KEY, base_url=API_ENDPOINT, temperature=0)

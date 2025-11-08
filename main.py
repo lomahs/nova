@@ -1,17 +1,12 @@
-from infrastructure.ai.ai_agent import AIAgent
+from fastapi import FastAPI
 
+from interfaces.api.task_adapter import router
 
-def main():
-    agent = AIAgent()
+app = FastAPI(title="Task Pilot API", version="1.0.0")
 
-    print("🤖 AI Project Manager Agent Ready!")
+# Include routes
+app.include_router(router, prefix="/tasks", tags=["Tasks"])
 
-    while True:
-        query = input("You: ")
-        if query.lower() in ["exit", "quit"]:
-            break
-        response = agent.chat(query)
-        print(f"AI: {response}\n")
-
-if __name__ == "__main__":
-    main()
+@app.get("/")
+def root():
+    return {"message": "Welcome to Task Pilot API"}
