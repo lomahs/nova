@@ -1,3 +1,67 @@
+// Add CSS styles for typing indicator
+const style = document.createElement('style');
+style.textContent = `
+    .typing-indicator {
+        display: flex;
+        gap: 4px;
+    }
+    .typing-indicator span {
+        width: 8px;
+        height: 8px;
+        background: #666;
+        border-radius: 50%;
+        animation: bounce 1.4s infinite ease-in-out;
+    }
+    .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+    .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes bounce {
+        0%, 80%, 100% { transform: scale(0); }
+        40% { transform: scale(1); }
+    }
+    .markdown-bubble {
+        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+        font-size: 1rem;
+        line-height: 1.6;
+        background: #f3f4f6;
+        color: #222;
+        overflow-x: auto;
+    }
+    .markdown-bubble h1, .markdown-bubble h2, .markdown-bubble h3 {
+        margin-top: 1em;
+        margin-bottom: 0.5em;
+        font-weight: bold;
+    }
+    .markdown-bubble pre, .markdown-bubble code {
+        background: #e5e7eb;
+        color: #1e293b;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 0.95em;
+        font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+    }
+    .markdown-bubble pre {
+        padding: 12px;
+        margin: 8px 0;
+        overflow-x: auto;
+    }
+    .markdown-bubble ul, .markdown-bubble ol {
+        margin-left: 1.5em;
+        margin-bottom: 1em;
+    }
+    .markdown-bubble blockquote {
+        border-left: 4px solid #d1d5db;
+        background: #f9fafb;
+        padding: 8px 16px;
+        margin: 8px 0;
+        color: #374151;
+    }
+    .markdown-bubble a {
+        color: #2563eb;
+        text-decoration: underline;
+    }
+`;
+document.head.appendChild(style);
+
 let allTasks = [];
 let users = {};
 
@@ -5,6 +69,8 @@ let users = {};
 let statusChart = null;
 let chartCanvas = null;
 let chartContext = null;
+let viewMode = 'card'; // 'card' or 'table'
+let chatWebSocket = null;
 
 function getStatusClass(status) {
     switch (status) {
@@ -20,6 +86,142 @@ function getStatusClass(status) {
 function isOverdue(dueDate) {
     const today = new Date().toISOString().split('T')[0];
     return dueDate < today && new Date(dueDate).setHours(0,0,0,0) <= new Date().setHours(0,0,0,0);
+}
+
+function renderTableView(tasksToRender, taskList) {
+    const table = `
+        <div class="overflow-x-auto">
+            <table class="min-w-full bg-white">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="py-2 px-4 text-left text-sm font-semibold text-gray-600">Task</th>
+                        <th class="py-2 px-4 text-left text-sm font-semibold text-gray-600">Status</th>
+                        <th class="py-2 px-4 text-left text-sm font-semibold text-gray-600">PIC</th>
+                        <th class="py-2 px-4 text-left text-sm font-semibold text-gray-600">Progress</th>
+                        <th class="py-2 px-4 text-left text-sm font-semibold text-gray-600">Plan Dates</th>
+                        <th class="py-2 px-4 text-left text-sm font-semibold text-gray-600">Effort</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tasksToRender.map(task => {
+                        const statusClass = getStatusClass(task.status);
+                        const planDates = task.plan_start_date && task.plan_end_date ? 
+                            `${new Date(task.plan_start_date).toLocaleDateString()} - ${new Date(task.plan_end_date).toLocaleDateString()}` : 
+                            'Not set';
+                        const progress = task.progress ? `${Math.round(task.progress)}%` : '0%';
+                        const effort = task.plan_effort ? `${task.plan_effort}h` : '-';
+                        console.log(task)
+                        
+                        return `
+                            <tr class="task-row border-b hover:bg-gray-50 cursor-pointer" data-task-id="${task.id}">
+                                <td class="py-2 px-4">
+                                    <div class="font-medium">${task.task}</div>
+                                    ${task.issues && task.issues.length > 0 ? 
+                                        `<div class="text-xs text-red-600 mt-1">${task.issues.length} issue(s)</div>` : ''}
+                                </td>
+                                <td class="py-2 px-4">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${statusClass}">${task.status}</span>
+                                </td>
+                                <td class="py-2 px-4">
+                                    <div class="flex items-center">
+                                        <div class="w-6 h-6 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-xs font-bold mr-2">
+                                            ${task.pic.charAt(0)}
+                                        </div>
+                                        <span class="text-sm">${task.pic}</span>
+                                    </div>
+                                </td>
+                                <td class="py-2 px-4">
+                                    <div class="w-24 bg-gray-200 rounded-full h-2">
+                                        <div class="bg-blue-600 h-2 rounded-full" style="width: ${progress}"></div>
+                                    </div>
+                                    <span class="text-xs text-gray-600 ml-1">${progress}</span>
+                                </td>
+                                <td class="py-2 px-4 text-sm">${planDates}</td>
+                                <td class="py-2 px-4 text-sm">${effort}</td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+    taskList.innerHTML = table;
+}
+
+function renderCardView(tasksToRender, taskList) {
+    tasksToRender.forEach(task => {
+        const statusClass = getStatusClass(task.status);
+        const overdue = task.plan_end_date && new Date(task.plan_end_date) < new Date() && task.status !== 'Done';
+        const dateClass = overdue ? 'text-red-600 font-semibold' : 'text-gray-500';
+
+        // Format dates for display
+        const planDates = task.plan_start_date && task.plan_end_date ? 
+            `${new Date(task.plan_start_date).toLocaleDateString()} - ${new Date(task.plan_end_date).toLocaleDateString()}` : 
+            'No planned dates';
+        
+        const actualDates = task.actual_start_date && task.actual_end_date ? 
+            `${new Date(task.actual_start_date).toLocaleDateString()} - ${new Date(task.actual_end_date).toLocaleDateString()}` : 
+            'Not started';
+
+        // Format effort and progress
+        const planEffort = task.plan_effort ? `${task.plan_effort}h` : '-';
+        const actualEffort = task.actual_effort ? `${task.actual_effort}h` : '-';
+        const progress = task.progress ? `${Math.round(task.progress)}%` : '0%';
+
+        const taskCard = `
+            <div class="task-card bg-white p-4 rounded-lg shadow-sm mb-4" data-task-id="${task.id}">
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex-1">
+                        <p class="font-semibold text-lg">${task.task}</p>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <span class="px-3 py-1 text-sm font-semibold rounded-full ${statusClass}">${task.status}</span>
+                            <span class="text-sm text-gray-500">${progress}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center font-bold" title="${task.pic}">
+                            ${task.pic.charAt(0)}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 text-sm mb-3">
+                    <div>
+                        <p class="text-gray-500">Planned Dates</p>
+                        <p class="font-medium ${dateClass}">${planDates}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Actual Dates</p>
+                        <p class="font-medium">${actualDates}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Planned Effort</p>
+                        <p class="font-medium">${planEffort}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Actual Effort</p>
+                        <p class="font-medium">${actualEffort}</p>
+                    </div>
+                </div>
+                
+                ${task.issues && task.issues.length > 0 ? `
+                    <div class="mb-2">
+                        <p class="text-gray-500 text-sm">Issues:</p>
+                        <ul class="list-disc list-inside text-sm text-red-600">
+                            ${task.issues.map(issue => `<li>${issue}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+                
+                ${task.remark ? `
+                    <div class="text-sm text-gray-600 border-t pt-2 mt-2">
+                        <p class="italic">${task.remark}</p>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+        taskList.innerHTML += taskCard;
+    });
 }
 
 function renderTasks() {
@@ -62,28 +264,11 @@ function renderTasks() {
         return;
     }
 
-    tasksToRender.forEach(task => {
-        const statusClass = getStatusClass(task.status);
-        const overdue = isOverdue(task.dueDate) && task.status !== 'Done';
-        const dateClass = overdue ? 'text-red-600 font-semibold' : 'text-gray-500';
-
-        const taskCard = `
-            <div class="task-card bg-white p-4 rounded-lg shadow-sm mb-4 flex flex-wrap justify-between items-center" data-task-id="${task.id}">
-                <div class="flex-1 min-w-[200px] mb-2 md:mb-0">
-                    <p class="font-semibold text-lg">${task.title}</p>
-                    <p class="text-sm text-gray-400">${task.project}</p>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span class="text-sm font-medium ${dateClass}">${task.dueDate}</span>
-                    <span class="px-3 py-1 text-sm font-semibold rounded-full ${statusClass}">${task.status}</span>
-                    <div class="w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center font-bold" title="${task.pic}">
-                        ${task.pic.charAt(0)}
-                    <div>
-                </div>
-            </div>
-        `;
-        taskList.innerHTML += taskCard;
-    });
+    if (viewMode === 'table') {
+        renderTableView(tasksToRender, taskList);
+    } else {
+        renderCardView(tasksToRender, taskList);
+    }
 }
 
 function updateStats() {
@@ -282,6 +467,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize the chart once at startup
         initializeChart();
 
+        // Add view mode toggle functionality
+        const viewToggle = document.getElementById('viewToggle');
+        if (viewToggle) {
+            viewToggle.addEventListener('change', (e) => {
+                viewMode = e.target.checked ? 'table' : 'card';
+                renderTasks();
+            });
+        }
+
         const taskList = document.getElementById('taskList');
         const taskModal = document.getElementById('taskModal');
         const closeModalBtn = document.getElementById('closeModal');
@@ -315,7 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const modalEl = document.getElementById('new-task-modal');
         const formEl = document.getElementById('new-task-form');
-        const openModalBtn = document.getElementById('newTaskButton');
+        // const openModalBtn = document.getElementById('newTaskButton');
         const cancelBtn = document.getElementById('cancelNewTaskBtn');
         const messageModalEl = document.getElementById('message-modal');
         const messageContentEl = document.getElementById('message-content');
@@ -332,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function isOverdue(dueDate) {
-            return dueDate < today && new Date(dueDate).setHours(0,0,0,0) <= new Date().setHours(0,0,0,0);
+            return dueDate < today;
         }
 
         function renderTasks() {
@@ -365,79 +559,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 taskList.innerHTML = '<p class="text-gray-500 text-center py-8">No tasks found matching your criteria.</p>';
             }
 
-            tasksToRender.forEach(task => {
-                const statusClass = getStatusClass(task.status);
-                const overdue = task.plan_end_date && new Date(task.plan_end_date) < new Date() && task.status !== 'Done';
-                const dateClass = overdue ? 'text-red-600 font-semibold' : 'text-gray-500';
-
-                // Format dates for display
-                const planDates = task.plan_start_date && task.plan_end_date ? 
-                    `${new Date(task.plan_start_date).toLocaleDateString()} - ${new Date(task.plan_end_date).toLocaleDateString()}` : 
-                    'No planned dates';
-                
-                const actualDates = task.actual_start_date && task.actual_end_date ? 
-                    `${new Date(task.actual_start_date).toLocaleDateString()} - ${new Date(task.actual_end_date).toLocaleDateString()}` : 
-                    'Not started';
-
-                // Format effort and progress
-                const planEffort = task.plan_effort ? `${task.plan_effort}h` : '-';
-                const actualEffort = task.actual_effort ? `${task.actual_effort}h` : '-';
-                const progress = task.progress ? `${Math.round(task.progress)}%` : '0%';
-
-                const taskCard = `
-                    <div class="task-card bg-white p-4 rounded-lg shadow-sm mb-4" data-task-id="${task.id}">
-                        <div class="flex justify-between items-start mb-3">
-                            <div class="flex-1">
-                                <p class="font-semibold text-lg">${task.task}</p>
-                                <div class="flex items-center space-x-2 mt-1">
-                                    <span class="px-3 py-1 text-sm font-semibold rounded-full ${statusClass}">${task.status}</span>
-                                    <span class="text-sm text-gray-500">${progress}</span>
-                                </div>
-                            </div>
-                            <div class="flex items-center">
-                                <div class="w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center font-bold" title="${task.pic}">
-                                    ${task.pic.charAt(0)}
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-4 text-sm mb-3">
-                            <div>
-                                <p class="text-gray-500">Planned Dates</p>
-                                <p class="font-medium ${dateClass}">${planDates}</p>
-                            </div>
-                            <div>
-                                <p class="text-gray-500">Actual Dates</p>
-                                <p class="font-medium">${actualDates}</p>
-                            </div>
-                            <div>
-                                <p class="text-gray-500">Planned Effort</p>
-                                <p class="font-medium">${planEffort}</p>
-                            </div>
-                            <div>
-                                <p class="text-gray-500">Actual Effort</p>
-                                <p class="font-medium">${actualEffort}</p>
-                            </div>
-                        </div>
-                        
-                        ${task.issues && task.issues.length > 0 ? `
-                            <div class="mb-2">
-                                <p class="text-gray-500 text-sm">Issues:</p>
-                                <ul class="list-disc list-inside text-sm text-red-600">
-                                    ${task.issues.map(issue => `<li>${issue}</li>`).join('')}
-                                </ul>
-                            </div>
-                        ` : ''}
-                        
-                        ${task.remark ? `
-                            <div class="text-sm text-gray-600 border-t pt-2 mt-2">
-                                <p class="italic">${task.remark}</p>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-                taskList.innerHTML += taskCard;
-            });
+            if(viewMode === 'table') {
+                renderTableView(tasksToRender, taskList);
+            } else {
+                renderCardView(tasksToRender, taskList);
+            }
         }
 
         function populateFilters() {
@@ -456,8 +582,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function updateStats() {
             statTotal.textContent = allTasks.length;
-            statToday.textContent = allTasks.filter(t => t.dueDate === today).length;
-            statOverdue.textContent = allTasks.filter(t => (isOverdue(t.dueDate) || t.status === 'Delayed') && t.status !== 'Done').length;
+            statToday.textContent = allTasks.filter(t => t.plan_end_date.split('T')[0] === today).length;
+            statOverdue.textContent = allTasks.filter(t => (isOverdue(t.plan_end_date.split('T')[0]) || t.status === 'Delayed') && t.status !== 'Done').length;
         }
 
         function renderChart() {
@@ -640,39 +766,94 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function addMessage(text, isUser) {
             const messageContainer = document.createElement('div');
-            messageContainer.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+            messageContainer.className = `flex ${isUser ? 'justify-end' : 'justify-start'} mb-2`;
             
             const messageBubble = document.createElement('div');
-            messageBubble.className = `p-3 rounded-xl max-w-[80%] shadow-md ${isUser ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-gray-200 text-gray-800 rounded-tl-none'}`;
-            messageBubble.textContent = text;
-            
+            messageBubble.className = `message-bubble p-3 rounded-xl max-w-[80%] ${
+                isUser ? 'bg-blue-600 text-white rounded-tr-none mr-2' : 'bg-gray-200 text-gray-800 rounded-tl-none ml-2 markdown-bubble'
+            }`;
+            if (!isUser) {
+                messageBubble.innerHTML = window.marked ? window.marked.parse(text) : text;
+            } else {
+                messageBubble.textContent = text;
+            }
             messageContainer.appendChild(messageBubble);
             chatMessages.appendChild(messageContainer);
-            chatMessages.scrollTop = chatMessages.scrollHeight; 
+            chatMessages.scrollTo({
+                top: chatMessages.scrollHeight,
+                behavior: 'smooth'
+            });
         }
 
-        function getBotResponse(userMessage) {
-            const lowerMsg = userMessage.toLowerCase();
-            
-            if (lowerMsg.includes('delayed') || lowerMsg.includes('overdue')) {
-                const delayedTasks = allTasks.filter(t => (isOverdue(t.dueDate) || t.status === 'Delayed') && t.status !== 'Done');
-                if (delayedTasks.length > 0) {
-                    return `I found ${delayedTasks.length} delayed tasks. The top delayed task is: "${delayedTasks[0].title}" (PIC: ${delayedTasks[0].pic}). Please check the "Delayed Tasks" view.`;
-                } else {
-                    return "Great news! There are no delayed or overdue tasks in the system right now.";
-                }
-            } else if (lowerMsg.includes('tasks for')) {
-                const picName = lowerMsg.split('tasks for')[1]?.trim() || '';
-                const tasksForPic = allTasks.filter(t => t.pic.toLowerCase().includes(picName) && t.status !== 'Done');
-                if (tasksForPic.length > 0) {
-                    return `${tasksForPic.length} tasks found for ${picName}. The next one due is: "${tasksForPic[0].title}".`;
-                } else {
-                    return `I couldn't find any pending tasks for a person named "${picName}".`;
-                }
-            } else if (lowerMsg.includes('hello') || lowerMsg.includes('hi')) {
-                return "Hello! I'm here to assist with task summaries and filters. Try asking about 'delayed tasks' or 'tasks for Alex'.";
-            } else {
-                return "That's an interesting query! To get better results, please ask me specifically about task **statuses**, **PICs**, or **delayed** items.";
+        // Initialize WebSocket connection
+        async function initWebSocket() {
+            if (!chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) {
+                return new Promise((resolve, reject) => {
+                    chatWebSocket = new WebSocket("ws://3f10394f0109.ngrok-free.app/tasks/ws/chat");
+                    
+                    chatWebSocket.onopen = () => {
+                        console.log('WebSocket connected');
+                        resolve(chatWebSocket);
+                    };
+                    
+                    chatWebSocket.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        reject(error);
+                    };
+
+                    chatWebSocket.onclose = () => {
+                        console.log('WebSocket closed');
+                        chatWebSocket = null;
+                    };
+
+                    let currentMessageContainer = null;
+                    let currentMessageBubble = null;
+                    let markdownContent = '';
+
+                    chatWebSocket.onmessage = (event) => {
+                        if (event.data === "[END]") {
+                            // Message complete, render markdown and reset for next response
+                            updateStats();
+                            renderChart();
+                            if (currentMessageBubble && window.marked) {
+                                currentMessageBubble.innerHTML = window.marked.parse(markdownContent);
+                            }
+                            currentMessageContainer = null;
+                            currentMessageBubble = null;
+                            markdownContent = '';
+                            return;
+                        }
+                        if (!currentMessageContainer) {
+                            // Create a new message container and bubble for this response
+                            currentMessageContainer = document.createElement('div');
+                            currentMessageContainer.className = 'flex justify-start mb-2';
+                            currentMessageBubble = document.createElement('div');
+                            currentMessageBubble.className = 'message-bubble markdown-bubble p-2 rounded-lg bg-gray-200 text-gray-800 rounded-tl-none max-w-[80%] ml-2';
+                            currentMessageContainer.appendChild(currentMessageBubble);
+                            chatMessages.appendChild(currentMessageContainer);
+                        }
+                        // Accumulate markdown content
+                        markdownContent += event.data;
+                        // Show raw text while streaming
+                        currentMessageBubble.textContent = markdownContent;
+                        // Scroll to the latest message
+                        chatMessages.scrollTo({
+                            top: chatMessages.scrollHeight,
+                            behavior: 'smooth'
+                        });
+                    };
+                });
+            }
+            return chatWebSocket;
+        }
+
+        async function getBotResponse(userMessage) {
+            try {
+                const ws = await initWebSocket();
+                ws.send(userMessage);
+            } catch (error) {
+                console.error('Error with WebSocket:', error);
+                addMessage("Sorry, I'm having trouble connecting to the chat service. Please try again.", false);
             }
         }
 
@@ -683,10 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
             addMessage(userText, true);
             chatInput.value = '';
 
-            setTimeout(() => {
-                const botResponse = getBotResponse(userText);
-                addMessage(botResponse, false);
-            }, 800);
+            getBotResponse(userText, addMessage);
         }
 
         function showSystemMessage(message, type) {
@@ -750,7 +928,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Open Modal
-        openModalBtn.addEventListener('click', openNewTaskModal);
+        // openModalBtn.addEventListener('click', openNewTaskModal);
 
         // Close Modal via Cancel Button (FIXED)
         cancelBtn.addEventListener('click', closeNewTaskModal);
@@ -795,9 +973,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         taskList.addEventListener('click', (e) => {
-            const card = e.target.closest('.task-card');
+            let card = e.target.closest('.task-card');
             if (card) {
                 openModal(card.dataset.taskId);
+            } else {
+                card = e.target.closest('.task-row');
+                if (card) {
+                    openModal(card.dataset.taskId);
+                }
             }
         });
 

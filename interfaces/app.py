@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from queue import Queue
 import json
 import time
+import requests
 
 app = Flask(__name__)
 # Simple secret for session handling in development. Replace with a secure key for production.
@@ -126,13 +127,28 @@ def get_sample_data():
     ]
 
     users = {
-        1: {"id": 1, "name": "Alex", "isLead": False},
-        2: {"id": 2, "name": "Jane", "isLead": False},
-        3: {"id": 3, "name": "Mike", "isLead": False},
-        4: {"id": 4, "name": "Sarah", "isLead": True},
+        1: {"id": 1, "name": "Chien", "isLead": False},
+        2: {"id": 2, "name": "Bao", "isLead": True},
+        3: {"id": 3, "name": "Cuong", "isLead": True},
+        4: {"id": 4, "name": "Toi", "isLead": True},
+        5: {"id": 5, "name": "Luong", "isLead": True},
     }
 
     return tasks, users
+
+import requests
+
+def get_api_data():
+    try:
+        response = requests.get("http://127.0.0.1:8000/tasks/search")
+        response.raise_for_status()
+        tasks = response.json()
+        return tasks
+    except Exception as e:
+        print(f"Error fetching tasks from API: {e}")
+        # Fallback to sample data if API fails
+        tasks, _ = get_sample_data()
+        return tasks
 
 
 @app.route("/")
@@ -185,6 +201,8 @@ def webhook_tasks_endpoint():
         return jsonify({"error": "Content-Type must be application/json"}), 400
     
     data = request.get_json()
+    print(f"Received {len(data)} tasks via webhook")
+    print(data)
     
     # Validate required fields in each task
     required_fields = ['id', 'task', 'pic', 'status']
@@ -200,34 +218,31 @@ def webhook_tasks_endpoint():
         'remark': str
     }
     
-    if not isinstance(data, list):
-        return jsonify({"error": "Request body must be an array of tasks"}), 400
-    
-    for task in data:
+    # for task in data:
         # Check required fields
-        missing_fields = [field for field in required_fields if field not in task]
-        if missing_fields:
-            return jsonify({
-                "error": f"Task missing required fields: {', '.join(missing_fields)}",
-                "task": task
-            }), 400
+        # missing_fields = [field for field in required_fields if field not in task]
+        # if missing_fields:
+        #     return jsonify({
+        #         "error": f"Task missing required fields: {', '.join(missing_fields)}",
+        #         "task": task
+        #     }), 400
             
-        # Validate optional fields if present
-        for field, field_type in optional_fields.items():
-            if field in task and task[field] is not None:
-                if not isinstance(task[field], field_type):
-                    return jsonify({
-                        "error": f"Field '{field}' must be of type {field_type.__name__}",
-                        "task": task
-                    }), 400
+        # # Validate optional fields if present
+        # for field, field_type in optional_fields.items():
+        #     if field in task and task[field] is not None:
+        #         if not isinstance(task[field], field_type):
+        #             return jsonify({
+        #                 "error": f"Field '{field}' must be of type {field_type.__name__}",
+        #                 "task": task
+        #             }), 400
                     
-        # Validate that issues is a list of strings if present
-        if 'issues' in task and task['issues'] is not None:
-            if not all(isinstance(issue, str) for issue in task['issues']):
-                return jsonify({
-                    "error": "All issues must be strings",
-                    "task": task
-                }), 400
+        # # Validate that issues is a list of strings if present
+        # if 'issues' in task and task['issues'] is not None:
+        #     if not all(isinstance(issue, str) for issue in task['issues']):
+        #         return jsonify({
+        #             "error": "All issues must be strings",
+        #             "task": task
+        #         }), 400
     
     # Store the received tasks
     global webhook_tasks
@@ -293,7 +308,7 @@ def events():
 @app.route('/api/data')
 def api_data():
     # Use webhook tasks if available, otherwise use sample data
-    tasks = webhook_tasks if webhook_tasks else get_sample_data()[0]
+    tasks = webhook_tasks if webhook_tasks else get_api_data()
     _, users = get_sample_data()  # Always use sample users for demo
     return jsonify({"tasks": tasks, "users": users})
 

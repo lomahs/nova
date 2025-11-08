@@ -47,6 +47,6 @@ body {
     cursor: pointer;
 }
 #chatPanel {
-    width: 35rem;
+    width: 45rem;
     transition: transform 0.3s ease-in-out;
 }
