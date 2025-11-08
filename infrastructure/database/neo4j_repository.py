@@ -93,19 +93,15 @@ def search_tasks(pic: str = None, plan_start_date: str = None, status: str = Non
         cypher += " WHERE " + " AND ".join(conditions)
     cypher += " RETURN t { .* , embedding: null } AS task"
 
-    # 1. connect webhook
-    # 2. get data json
-    # 3. push json to webhook
+    # Connect to Neo4j vector store
     neo4j_vector = connect_neo4j_vector()
-
     result = neo4j_vector.query(cypher, params=params)
 
-    task_list= []
+    task_list = []
     for record in result:
         task = record["task"]
-        task.pop("embedding")
-        task.pop("id")
-        task.pop("text")
+        task.pop("embedding", None)
+        task.pop("text", None)
         task_list.append(task)
 
     return task_list

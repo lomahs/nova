@@ -1,6 +1,19 @@
 import math
 from datetime import date, timedelta, datetime
+from typing import List
 
+
+def normalize_date_list(dates: List[str]) -> List[str]:
+    """Convert date strings like 'yesterday', 'today' or ISO strings to 'YYYY-MM-DD'."""
+    normalized = []
+    for d in dates:
+        if d.lower() == "today":
+            normalized.append(date.today().isoformat())
+        elif d.lower() == "yesterday":
+            normalized.append((date.today() - timedelta(days=1)).isoformat())
+        else:
+            normalized.append(d)  # assume already ISO string
+    return normalized
 
 def normalize_date(value: str) -> str:
     """Convert relative dates to ISO strings."""

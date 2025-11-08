@@ -1,4 +1,8 @@
+import asyncio
+from typing import AsyncGenerator
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from starlette.responses import StreamingResponse
 
 from domain.entities.task import Task
 from domain.services.utils import sanitize_floats
@@ -34,3 +38,20 @@ async def chat_socket(websocket: WebSocket):
 
     except WebSocketDisconnect:
         print("Client disconnected")
+
+@router.post("/chat/stream")
+async def stream_chat(req: str) -> StreamingResponse:
+    ai_agent = AIAgent()
+
+    """
+    Streams AI output token-by-token as server-sent chunks.
+    """
+    async def event_stream() -> AsyncGenerator[str, None]:
+        loop = asyncio.get_event_loop()
+
+        for chunk in await loop.run_in_executor(None, lambda: list(ai_agent.multi_tool_output(req))):
+        # flush each chunk as it's generated
+            print(chunk, end="", flush=True)
+            yield chunk
+
+    return StreamingResponse(event_stream(), media_type="text/plain")
