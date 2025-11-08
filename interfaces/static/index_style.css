@@ -1,0 +1,52 @@
+body {
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+}
+.chart-container {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    height: 300px;
+    max-height: 350px;
+}
+@media (min-width: 768px) {
+    .chart-container {
+        height: 100%;
+        max-height: 300px;
+    }
+}
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    color: #374151;
+}
+.nav-link:hover {
+    background-color: #f3f4f6;
+}
+.nav-link.active {
+    background-color: #eef2ff;
+    color: #4f46e5;
+    font-weight: 600;
+}
+.nav-link .icon {
+    margin-right: 0.75rem;
+    font-size: 1.25rem;
+}
+.task-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+.task-card {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+#chatPanel {
+    width: 35rem;
+    transition: transform 0.3s ease-in-out;
+}
